@@ -1,16 +1,19 @@
 {
-  "name": "express",
+  "name": "colorhackers-ai-backend",
   "version": "1.0.0",
-  "description": "",
   "type": "module",
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
-    "@types/express": "^5.0.0",
-    "express": "^4.18.2"
+    "express": "^4.21.2",
+    "formidable": "^3.7.0",
+    "openai": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0"
+    "typescript": "^5.3.3",
+    "@types/node": "^20.11.0",
+    "@types/express": "^4.17.21"
+  },
+  "scripts": {
+    "start": "node ./dist/index.js"
   }
 }
+
