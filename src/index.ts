@@ -1,55 +1,44 @@
-import express from 'express'
-import path from 'path'
-import { fileURLToPath } from 'url'
-import formidable from "formidable";
-import fs from "fs";
-import { OpenAI } from "openai";
+// AI IMAGE: Generate Silo Realm
+app.post('/api/generate-silo-realm', async (req, res) => {
+  try {
+    const form = formidable({ multiples: false });
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
+    form.parse(req, async (err, fields, files) => {
+      if (err) {
+        console.error("Form parse error:", err);
+        return res.status(500).json({ error: "Failed to parse upload" });
+      }
 
-const app = express()
+      const silo = fields.silo;
+      const file = files.image;
 
-// Home route - HTML
-app.get('/', (req, res) => {
-  res.type('html').send(`
-    <!doctype html>
-    <html>
-      <head>
-        <meta charset="utf-8"/>
-        <title>Express on Vercel</title>
-        <link rel="stylesheet" href="/style.css" />
-      </head>
-      <body>
-        <nav>
-          <a href="/">Home</a>
-          <a href="/about">About</a>
-          <a href="/api-data">API Data</a>
-          <a href="/healthz">Health</a>
-        </nav>
-        <h1>Welcome to Express on Vercel 🚀</h1>
-        <p>This is a minimal example without a database or forms.</p>
-        <img src="/logo.png" alt="Logo" width="120" />
-      </body>
-    </html>
-  `)
-})
+      if (!silo || !file) {
+        return res.status(400).json({ error: "Missing silo or image" });
+      }
 
-app.get('/about', function (req, res) {
-  res.sendFile(path.join(__dirname, '..', 'components', 'about.htm'))
-})
+      // Read uploaded image
+      const imgData = fs.readFileSync(file.filepath);
 
-// Example API endpoint - JSON
-app.get('/api-data', (req, res) => {
-  res.json({
-    message: 'Here is some sample API data',
-    items: ['apple', 'banana', 'cherry'],
-  })
-})
+      // OpenAI client
+      const openai = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY
+      });
 
-// Health check
-app.get('/healthz', (req, res) => {
-  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() })
-})
+      // Call OpenAI to generate image
+      const response = await openai.images.generate({
+        model: "gpt-image-1",
+        prompt: `Transform this person into the ${silo} SILO realm. Use textures and atmosphere matching the SILO aesthetic.`,
+        size: "1024x1024",
+        image: imgData
+      });
 
-export default app
+      const imageUrl = response.data[0].url;
+
+      return res.json({ imageUrl });
+    });
+
+  } catch (error) {
+    console.error("AI generation error:", error);
+    res.status(500).json({ error: "AI generation failed" });
+  }
+});
