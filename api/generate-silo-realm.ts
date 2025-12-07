@@ -16,44 +16,102 @@ export async function POST(req: Request) {
       );
     }
 
-    // Convert selfie to ArrayBuffer
     const selfieBytes = await selfie.arrayBuffer();
 
-    // Silo-style prompts
-    const styles: Record<string, string> = {
-      Ethereal:
-        "ultra realistic portrait, soft glowing ethereal mist, pale clouds, cinematic lighting, surreal airy atmosphere, gentle tones, photography not illustration",
-      Earthers:
-        "ultra realistic portrait, earthy clay tones, forest atmosphere, real sunlight, botanical textures, natural materials, grounded aesthetic, photography not illustration",
-      Elementals:
-        "ultra realistic vibrant energetic portrait, bold colors, kinetic paint splashes, motion energy, crisp studio lighting, photography not digital art",
-      Naturalists:
-        "ultra realistic portrait, warm human textures, linen, terracotta, natural window light, cozy environment, photography not illustration",
-      Cosmics:
-        "ultra realistic cosmic portrait, deep blues, violet nebula clouds, subtle futuristic shimmer, dramatic lighting, photography not CGI",
-      Metallics:
-        "ultra realistic metallic portrait, chrome reflections, gold + silver textures, engineered light, crisp specular highlights, photography not render",
-      Royals:
-        "ultra realistic regal portrait, velvet textures, maroon + navy tones, dramatic cinematic look, film lighting, photography not illustration"
+    // =============================================================
+    // 🎨 OPTIMIZED SILO STYLE PROFILES — CINEMATIC PHOTOGRAPHY ONLY
+    // =============================================================
+    const siloPrompts: Record<string, string> = {
+      Ethereal: `
+        ultra-realistic portrait photography,
+        soft atmospheric glow,
+        misty clouds,
+        pale mint + sunrise tones,
+        premium skin texture retention,
+        volumetric cinematic lighting,
+        airy surreal realism,
+        background softly blurred like Leica f1.4
+      `,
+      Earthers: `
+        ultra-realistic earth-tone portrait,
+        clay + moss textures,
+        real sunlight filtering through leaves,
+        botanical warmth,
+        rich natural skin texture,
+        shallow depth of field,
+        warm organic color grading,
+        portrait shot on vintage film lens
+      `,
+      Elementals: `
+        ultra-realistic energetic portrait,
+        bold kinetic color bursts,
+        high-contrast dramatic lighting,
+        crisp studio reflections,
+        motion energy atmosphere,
+        expressive color splashes (real paint),
+        premium photography realism
+      `,
+      Naturalists: `
+        ultra-realistic humanistic portrait,
+        linen and terracotta palette,
+        natural window light,
+        warm skin tones,
+        handcrafted textures,
+        cozy tactile depth,
+        cinematic lifestyle realism
+      `,
+      Cosmics: `
+        ultra-realistic cosmic portrait,
+        deep navy + ultraviolet nebula mist,
+        reflective sci-fi backlighting,
+        soft rimlight glow around silhouette,
+        atmospheric particles,
+        realistic—not CGI,
+        dramatic high-end photography
+      `,
+      Metallics: `
+        ultra-realistic metallic portrait,
+        chrome, silver and gold reflections,
+        engineered light beams,
+        shimmering specular highlights,
+        clean futuristic realism,
+        polished Vogue-style lighting
+      `,
+      Royals: `
+        ultra-realistic regal portrait,
+        velvet textures,
+        maroon + navy cinematic palette,
+        deep dramatic shadows,
+        luxury editorial realism,
+        Rembrandt-style contrast,
+        premium film-grade portrait
+      `
     };
 
-    const stylePrompt = styles[silo] || "ultra realistic portrait";
+    const style = siloPrompts[silo] || "ultra realistic portrait";
 
-    // Initialize OpenAI
+    // Complete prompt
+    const finalPrompt = `
+      Transform the uploaded selfie into a ${silo}-themed cinematic portrait.
+
+      REQUIREMENTS:
+      - Must be ULTRA REALISTIC (no cartoon, no illustration, no CGI)
+      - Preserve REAL human facial structure (no distortions)
+      - Preserve skin texture with high-end photographic quality
+      - Cinematic lighting, depth, shadow, contrast
+      - Professional portrait look (magazine cover quality)
+      - ${style}
+
+      Improve the background subtly to fit the theme,
+      but keep the person recognizable and natural.
+    `;
+
+    // =============================================================
+    // 🚀 CALL OPENAI — correct “input array” format (required)
+    // =============================================================
     const client = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY
     });
-
-    /**
-     * ❗ IMPORTANT:
-     * gpt-image-1 DOES NOT accept { image: ... } inside images.generate
-     * For transformations, OpenAI requires "image" to be inside input array as:
-     * 
-     * input: [
-     *   { role: "input_image", image: <bytes> },
-     *   { role: "input_text", text: "Transform this selfie..." }
-     * ]
-     */
 
     const response = await client.images.generate({
       model: "gpt-image-1",
@@ -65,18 +123,7 @@ export async function POST(req: Request) {
         },
         {
           role: "input_text",
-          text: `
-            Transform the person in the uploaded selfie into their ${silo} realm.
-
-            MUST FOLLOW STYLE:
-            ${stylePrompt}
-
-            REQUIREMENTS:
-            - ULTRA REALISTIC (NOT cartoon, NOT illustration)
-            - Keep real skin texture
-            - Cinematic photography lighting
-            - Must look like a high-end professional portrait
-          `
+          text: finalPrompt
         }
       ]
     });
@@ -84,9 +131,10 @@ export async function POST(req: Request) {
     const imageUrl = response.data[0].url;
 
     return NextResponse.json({ imageUrl });
-  } catch (err: any) {
+
+  } catch (error: any) {
     return NextResponse.json(
-      { error: err?.message || "Server error" },
+      { error: error?.message || "AI image generation failed" },
       { status: 500 }
     );
   }
