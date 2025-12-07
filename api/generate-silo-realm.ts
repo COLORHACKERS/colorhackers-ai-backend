@@ -3,19 +3,24 @@ import OpenAI from "openai";
 
 export const runtime = "edge";
 
-export async function POST(req) {
+export async function POST(req: Request) {
   try {
     const form = await req.formData();
-    const image = form.get("image");
-    const silo = form.get("silo");
+    const selfie = form.get("image") as File | null;
+    const silo = form.get("silo") as string | null;
 
-    if (!image || !silo) {
-      return NextResponse.json({ error: "Missing image or silo" }, { status: 400 });
+    if (!selfie || !silo) {
+      return NextResponse.json(
+        { error: "Missing image or silo" },
+        { status: 400 }
+      );
     }
 
-    const bytes = await image.arrayBuffer();
+    // Convert selfie to ArrayBuffer
+    const selfieBytes = await selfie.arrayBuffer();
 
-    const prompts = {
+    // Silo-style prompts
+    const styles: Record<string, string> = {
       Ethereal:
         "ultra realistic portrait, soft glowing ethereal mist, pale clouds, cinematic lighting, surreal airy atmosphere, gentle tones, photography not illustration",
       Earthers:
@@ -32,27 +37,57 @@ export async function POST(req) {
         "ultra realistic regal portrait, velvet textures, maroon + navy tones, dramatic cinematic look, film lighting, photography not illustration"
     };
 
-    const prompt = prompts[silo] || "ultra realistic portrait";
+    const stylePrompt = styles[silo] || "ultra realistic portrait";
 
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-    const result = await openai.images.generate({
-      model: "gpt-image-1",
-      prompt: `Transform the person in the uploaded selfie into their ${silo} realm. 
-      STYLE REQUIREMENTS:
-      - Must be ULTRA REALISTIC (no cartoon, no illustration, no CGI look)
-      - Maintain real human skin texture
-      - Use cinematic photography lighting
-      - Use this silo theme: ${prompt}
-      `,
-      size: "1024x1024",
-      image: bytes
+    // Initialize OpenAI
+    const client = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY
     });
 
-    const imageUrl = result.data[0].url;
+    /**
+     * ❗ IMPORTANT:
+     * gpt-image-1 DOES NOT accept { image: ... } inside images.generate
+     * For transformations, OpenAI requires "image" to be inside input array as:
+     * 
+     * input: [
+     *   { role: "input_image", image: <bytes> },
+     *   { role: "input_text", text: "Transform this selfie..." }
+     * ]
+     */
+
+    const response = await client.images.generate({
+      model: "gpt-image-1",
+      size: "1024x1024",
+      input: [
+        {
+          role: "input_image",
+          image: selfieBytes
+        },
+        {
+          role: "input_text",
+          text: `
+            Transform the person in the uploaded selfie into their ${silo} realm.
+
+            MUST FOLLOW STYLE:
+            ${stylePrompt}
+
+            REQUIREMENTS:
+            - ULTRA REALISTIC (NOT cartoon, NOT illustration)
+            - Keep real skin texture
+            - Cinematic photography lighting
+            - Must look like a high-end professional portrait
+          `
+        }
+      ]
+    });
+
+    const imageUrl = response.data[0].url;
 
     return NextResponse.json({ imageUrl });
-  } catch (err) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: err?.message || "Server error" },
+      { status: 500 }
+    );
   }
 }
