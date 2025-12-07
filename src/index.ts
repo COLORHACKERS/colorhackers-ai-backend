@@ -1,42 +1,62 @@
-// AI Image Generation Endpoint
-app.post("/api/generate-silo-realm", async (req, res) => {
-  try {
-    const form = formidable({ multiples: false });
+import express from "express";
+import path from "path";
+import { fileURLToPath } from "url";
+import formidable from "formidable";
+import fs from "fs";
+import { OpenAI } from "openai";
 
-    form.parse(req, async (err, fields, files) => {
-      if (err) {
-        console.error("Form parse error:", err);
-        return res.status(400).json({ error: "Invalid form data" });
-      }
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-      const silo = fields.silo;
-      const imageFile = files.image;
+const app = express();
 
-      if (!silo || !imageFile) {
-        return res.status(400).json({ error: "Missing silo or image" });
-      }
+// Allow JSON
+app.use(express.json());
 
-      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-      // Read the uploaded image
-      const imgBuffer = fs.readFileSync(imageFile.filepath);
-
-      // Call OpenAI Image Model
-      const result = await openai.images.generate({
-        model: "gpt-image-1",
-        prompt: `Transform this person into the ${silo} color realm.`,
-        image: imgBuffer,
-      });
-
-      const imageBase64 = result.data[0].b64_json;
-
-      return res.json({
-        imageUrl: `data:image/png;base64,${imageBase64}`,
-      });
-    });
-  } catch (error) {
-    console.error("AI error:", error);
-    res.status(500).json({ error: "AI generation failed" });
-  }
+// AI CLIENT
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
 });
-export default app
+
+// -------------------------
+// GENERATE SILO REALM IMAGE
+// -------------------------
+app.post("/api/generate-silo-realm", (req, res) => {
+  const form = formidable({ multiples: false });
+
+  form.parse(req, async (err, fields, files) => {
+    if (err) return res.status(500).json({ error: "Upload failed" });
+
+    const imageFile = files.file;
+    if (!imageFile) return res.status(400).json({ error: "No file uploaded" });
+
+    const buffer = fs.readFileSync(imageFile.filepath);
+
+    try {
+      const response = await client.images.generate({
+        model: "gpt-image-1",
+        prompt:
+          "Turn this selfie into a ColorHackers Silo Realm image, cinematic, high-end, glowing colors.",
+        size: "1024x1024",
+        image: buffer,
+      });
+
+      const image_base64 = response.data[0].b64_json;
+
+      res.json({ image: image_base64 });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: "AI generation failed" });
+    }
+  });
+});
+
+// -------------------------
+// HEALTH CHECK
+// -------------------------
+app.get("/healthz", (req, res) => {
+  res.json({ ok: true, time: new Date().toISOString() });
+});
+
+// DEFAULT EXPORT FOR VERCEL
+export default app;
