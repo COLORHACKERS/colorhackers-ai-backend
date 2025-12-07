@@ -58,6 +58,12 @@ app.post("/api/generate-silo-realm", (req, res) => {
     console.error("❌ AI Error:", error);
     res.status(500).json({ error: "AI generation failed" });
   }
+  app.use(
+  cors({
+    origin: "*",
+    methods: ["GET", "POST"],
+  })
+);
 });
 
 // -------- EXPORT APP FOR VERCEL ----------
