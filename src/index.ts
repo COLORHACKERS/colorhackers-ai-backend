@@ -40,9 +40,33 @@ app.post("/api/generate-silo-realm", async (req, res) => {
 
       const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-      const prompt = fields.silo
-        ? `Transform this selfie into a ColorHackers ${fields.silo} realm aesthetic with accurate textures, colors, and atmosphere.`
-        : `Transform this selfie into a ColorHackers Silo realm aesthetic.`;
+     const prompt = `
+Create an ULTRA REALISTIC portrait photograph of the person in the uploaded image.
+Do NOT change their face, age, features, hair, skin tone, or identity.
+
+Blend them into a "${silo}" themed environment using realistic lighting and high-end
+photographic techniques. Avoid making the person look AI-generated or stylized.
+
+Requirements:
+- Hyper-realistic skin texture
+- Natural lighting (cinematic, soft diffused or rim light depending on environment)
+- Real lens depth of field (no fake blur halos)
+- No cartoon, no 3D, no illustration, no anime, no painterly effects
+- Preserve facial integrity completely
+- Integrate the environment subtly around/behind them
+
+SILO ENVIRONMENTS:
+Ethereal → soft mist, sunlit glow, cloud haze, gentle pastel light
+Earthers → forest depth, organic textures, warm greens + clay tones
+Elementals → energy, color streaks, photographic motion effects
+Naturalists → warm interior light, neutrals, tactile fabrics
+Cosmics → photoreal cosmic lighting, nebula fog, deep blues/purples
+Metallics → reflective REAL metal surfaces, chrome light reflections
+Royals → rich velvet lighting, maroon/navy shadows, dramatic portrait light
+
+Output must look like a real high-end editorial photograph.
+`;
+
 
       const result = await client.images.generate({
         model: "gpt-image-1",
