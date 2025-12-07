@@ -1,11 +1,8 @@
 export default function Home() {
   return (
-    <main style={{ padding: 40, fontFamily: "sans-serif" }}>
-      <h1>ColorHackers Backend</h1>
-      <p>Your API is running.</p>
-      <p>
-        POST to: <code>/api/generate-silo-realm</code>
-      </p>
-    </main>
+    <div style={{ padding: 40 }}>
+      <h1>ColorHackers AI Backend</h1>
+      <p>This is the backend. API route is working.</p>
+    </div>
   );
 }
