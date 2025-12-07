@@ -1,68 +1,68 @@
-import express from 'express';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import formidable from 'formidable';
-import fs from 'fs';
-import cors from 'cors';
-import { OpenAI } from 'openai';
+import express from "express";
+import path from "path";
+import { fileURLToPath } from "url";
+import formidable from "formidable";
+import fs from "fs";
+import cors from "cors";
+import { OpenAI } from "openai";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-
-// Required for Shopify → Vercel
 app.use(cors());
-app.use(express.json());
 
-// Health
-app.get('/api/healthz', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+// --- HEALTH CHECK -----------------------------------
+app.get("/api/healthz", (req, res) => {
+  res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-// --------------------------
-// AI SILO REALM GENERATOR
-// --------------------------
-app.post('/api/generate-silo-realm', async (req, res) => {
+// --- AI SILO REALM GENERATOR -------------------------
+app.post("/api/generate-silo-realm", async (req, res) => {
   try {
     const form = formidable({ multiples: false });
 
     form.parse(req, async (err, fields, files) => {
       if (err) {
-        console.error('Form parse error:', err);
-        return res.status(400).json({ error: 'Bad request' });
+        console.error("Form parse error:", err);
+        return res.status(400).json({ error: "Bad form data" });
       }
 
       const imageFile = files.image?.[0];
       if (!imageFile) {
-        return res.status(400).json({ error: 'No image uploaded' });
+        return res.status(400).json({ error: "No image uploaded" });
       }
 
-      const fileData = fs.readFileSync(imageFile.filepath);
-      const base64 = fileData.toString('base64');
+      // Read uploaded file → base64
+      const buffer = fs.readFileSync(imageFile.filepath);
+      const base64 = buffer.toString("base64");
+
+      const silo = fields.silo || "Unknown";
 
       const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+      // Build the prompt
       const prompt = `
-        Transform the person in this photo into their ColorHackers Silo realm.
-        Apply colors, textures, atmosphere, and mood of their Silo.
+        Transform this selfie into a ${silo} Silo Realm.
+        Apply the correct colors, atmosphere, and aesthetic.
       `;
 
-      const ai = await client.images.generate({
+      // NEW CORRECT API CALL (OpenAI Images v1)
+      const result = await client.images.generate({
         model: "gpt-image-1",
-        prompt: prompt,
-        image: base64,
-        size: "1024x1024"
+        prompt,
+        size: "1024x1024",
+        input: base64,            // <-- Correct field instead of "image"
       });
 
-      const imageUrl = ai.data[0].url;
-      res.json({ imageUrl });
+      const outputUrl = result.data[0].url;
+      res.json({ imageUrl: outputUrl });
     });
-  } catch (err) {
-    console.error('AI ERROR:', err);
-    res.status(500).json({ error: 'AI generation failed' });
+  } catch (error) {
+    console.error("AI Error:", error);
+    res.status(500).json({ error: "AI generation failed" });
   }
 });
 
-// Export for Vercel
+// --- EXPORT EXPRESS APP ------------------------------
 export default app;
