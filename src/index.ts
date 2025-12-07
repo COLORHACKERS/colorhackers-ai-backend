@@ -1,44 +1,41 @@
-// AI IMAGE: Generate Silo Realm
-app.post('/api/generate-silo-realm', async (req, res) => {
+// AI Image Generation Endpoint
+app.post("/api/generate-silo-realm", async (req, res) => {
   try {
     const form = formidable({ multiples: false });
 
     form.parse(req, async (err, fields, files) => {
       if (err) {
         console.error("Form parse error:", err);
-        return res.status(500).json({ error: "Failed to parse upload" });
+        return res.status(400).json({ error: "Invalid form data" });
       }
 
       const silo = fields.silo;
-      const file = files.image;
+      const imageFile = files.image;
 
-      if (!silo || !file) {
+      if (!silo || !imageFile) {
         return res.status(400).json({ error: "Missing silo or image" });
       }
 
-      // Read uploaded image
-      const imgData = fs.readFileSync(file.filepath);
+      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-      // OpenAI client
-      const openai = new OpenAI({
-        apiKey: process.env.OPENAI_API_KEY
-      });
+      // Read the uploaded image
+      const imgBuffer = fs.readFileSync(imageFile.filepath);
 
-      // Call OpenAI to generate image
-      const response = await openai.images.generate({
+      // Call OpenAI Image Model
+      const result = await openai.images.generate({
         model: "gpt-image-1",
-        prompt: `Transform this person into the ${silo} SILO realm. Use textures and atmosphere matching the SILO aesthetic.`,
-        size: "1024x1024",
-        image: imgData
+        prompt: `Transform this person into the ${silo} color realm.`,
+        image: imgBuffer,
       });
 
-      const imageUrl = response.data[0].url;
+      const imageBase64 = result.data[0].b64_json;
 
-      return res.json({ imageUrl });
+      return res.json({
+        imageUrl: `data:image/png;base64,${imageBase64}`,
+      });
     });
-
   } catch (error) {
-    console.error("AI generation error:", error);
+    console.error("AI error:", error);
     res.status(500).json({ error: "AI generation failed" });
   }
 });
