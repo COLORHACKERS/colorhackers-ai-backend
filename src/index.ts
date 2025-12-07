@@ -67,17 +67,15 @@ Royals → rich velvet lighting, maroon/navy shadows, dramatic portrait light
 Output must look like a real high-end editorial photograph.
 `;
 
+const result = await client.images.generate({
+  model: "gpt-image-1",
+  prompt,
+  size: "1024x1024",
+  style: "natural",
+  quality: "high",
+  input_image: base64
+});
 
-      const result = await client.images.generate({
-        model: "gpt-image-1",
-        prompt,
-        size: "1024x1024",
-        input: [
-          {
-            image: base64,
-          },
-        ],
-      });
 
       const imageUrl = result.data[0].url;
       return res.json({ imageUrl });
