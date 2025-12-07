@@ -7,13 +7,14 @@
     "dev": "nodemon src/index.ts"
   },
   "dependencies": {
+    "cors": "^2.8.5",
     "express": "^4.21.2",
     "formidable": "^3.5.1",
     "openai": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "^22.17.2",
     "@types/express": "^5.0.3",
+    "@types/node": "^22.17.2",
     "typescript": "^5.3.3"
   }
 }
