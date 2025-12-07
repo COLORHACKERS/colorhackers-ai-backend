@@ -1,6 +1,6 @@
 export const metadata = {
-  title: "ColorHackers Backend",
-  description: "API service for ColorHackers",
+  title: "ColorHackers AI Backend",
+  description: "Backend API for generating silo realms"
 };
 
 export default function RootLayout({ children }) {
