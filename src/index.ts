@@ -39,3 +39,4 @@ app.post("/api/generate-silo-realm", async (req, res) => {
     res.status(500).json({ error: "AI generation failed" });
   }
 });
+export default app
