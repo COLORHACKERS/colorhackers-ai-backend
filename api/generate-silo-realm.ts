@@ -1,67 +1,58 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import OpenAI from "openai";
 
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
+export const runtime = "edge";
 
-export async function POST(req: NextRequest) {
+export async function POST(req) {
   try {
-    const formData = await req.formData();
+    const form = await req.formData();
+    const image = form.get("image");
+    const silo = form.get("silo");
 
-    const file = formData.get("image") as File | null;
-    const silo = formData.get("silo") as string | null;
-
-    if (!file || !silo) {
-      return NextResponse.json(
-        { error: "Missing image or silo" },
-        { status: 400 }
-      );
+    if (!image || !silo) {
+      return NextResponse.json({ error: "Missing image or silo" }, { status: 400 });
     }
 
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    const bytes = await image.arrayBuffer();
 
-    const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
+    const prompts = {
+      Ethereal:
+        "ultra realistic portrait, soft glowing ethereal mist, pale clouds, cinematic lighting, surreal airy atmosphere, gentle tones, photography not illustration",
+      Earthers:
+        "ultra realistic portrait, earthy clay tones, forest atmosphere, real sunlight, botanical textures, natural materials, grounded aesthetic, photography not illustration",
+      Elementals:
+        "ultra realistic vibrant energetic portrait, bold colors, kinetic paint splashes, motion energy, crisp studio lighting, photography not digital art",
+      Naturalists:
+        "ultra realistic portrait, warm human textures, linen, terracotta, natural window light, cozy environment, photography not illustration",
+      Cosmics:
+        "ultra realistic cosmic portrait, deep blues, violet nebula clouds, subtle futuristic shimmer, dramatic lighting, photography not CGI",
+      Metallics:
+        "ultra realistic metallic portrait, chrome reflections, gold + silver textures, engineered light, crisp specular highlights, photography not render",
+      Royals:
+        "ultra realistic regal portrait, velvet textures, maroon + navy tones, dramatic cinematic look, film lighting, photography not illustration"
+    };
 
-    const prompt = `
-Create an ULTRA-REALISTIC portrait.
-Use the user's real facial features, lighting, and proportions — NO cartoon, NO blur, NO stylization.
+    const prompt = prompts[silo] || "ultra realistic portrait";
 
-Blend their real face into the ${silo} universe:
-Ethereal → cinematic clouds, glowing light, airy realism  
-Earthers → botanical realism, film texture  
-Elementals → vibrant paint & glass realism  
-Naturalists → neutral textures, earthy realism  
-Cosmics → nebula, deep space realism  
-Metallics → chrome-lit realism  
-Royals → velvet shadows, rich editorial realism  
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-Must look like a REAL photograph — Vogue / Nike editorial style.
-`;
-
-    const response = await openai.images.generate({
+    const result = await openai.images.generate({
       model: "gpt-image-1",
-      prompt,
+      prompt: `Transform the person in the uploaded selfie into their ${silo} realm. 
+      STYLE REQUIREMENTS:
+      - Must be ULTRA REALISTIC (no cartoon, no illustration, no CGI look)
+      - Maintain real human skin texture
+      - Use cinematic photography lighting
+      - Use this silo theme: ${prompt}
+      `,
       size: "1024x1024",
-      image: buffer,
-      n: 1,
+      image: bytes
     });
 
-    const base64 = response.data[0].b64_json;
+    const imageUrl = result.data[0].url;
 
-    return NextResponse.json({
-      imageUrl: `data:image/png;base64,${base64}`,
-    });
-  } catch (err: any) {
-    console.error("AI ERROR:", err);
-    return NextResponse.json(
-      { error: "Generation failed", details: err.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ imageUrl });
+  } catch (err) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
