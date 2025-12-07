@@ -1,3 +1,12 @@
+import cors from "cors";
+app.use(
+  cors({
+    origin: "*",
+    methods: ["GET", "POST"],
+  })
+);
+
+
 // ───────────────────────────────────────────────
 //  COLORHACKERS AI BACKEND – FULL WORKING VERSION
 // ───────────────────────────────────────────────
