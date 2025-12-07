@@ -3,7 +3,7 @@ import OpenAI from "openai";
 
 export const config = {
   api: {
-    bodyParser: false, // because we're using form-data
+    bodyParser: false,
   },
 };
 
@@ -21,7 +21,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Convert file → buffer
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
@@ -29,22 +28,20 @@ export async function POST(req: NextRequest) {
       apiKey: process.env.OPENAI_API_KEY,
     });
 
-    // The Ultra Realistic Prompt
     const prompt = `
 Create an ULTRA-REALISTIC portrait.
-Use the user's face, lighting, and proportions exactly — NO CARTOON, NO SMOOTHING.
+Use the user's real facial features, lighting, and proportions — NO cartoon, NO blur, NO stylization.
 
-Blend them into the ${silo} visual universe:
-- Ethereal → clouds, mist, soft light, lucid gradients, dreamy realism
-- Earthers → forest, clay, botanicals, warm film texture
-- Elementals → bright kinetic paint, glass, firelight, sharp realism
-- Naturalists → textured neutrals, linen, stone, soft warm light
-- Cosmics → deep blues, magenta, nebula haze, cinematic sci-fi realism
-- Metallics → chrome, reflective metals, high contrast lighting
-- Royals → velvet shadows, rich purples, dramatic light
+Blend their real face into the ${silo} universe:
+Ethereal → cinematic clouds, glowing light, airy realism  
+Earthers → botanical realism, film texture  
+Elementals → vibrant paint & glass realism  
+Naturalists → neutral textures, earthy realism  
+Cosmics → nebula, deep space realism  
+Metallics → chrome-lit realism  
+Royals → velvet shadows, rich editorial realism  
 
-NO distortion. NO abstraction. 
-The final output must look like a **real editorial fashion photo**.
+Must look like a REAL photograph — Vogue / Nike editorial style.
 `;
 
     const response = await openai.images.generate({
@@ -55,17 +52,16 @@ The final output must look like a **real editorial fashion photo**.
       n: 1,
     });
 
-    const image_base64 = response.data[0].b64_json;
+    const base64 = response.data[0].b64_json;
 
     return NextResponse.json({
-      imageUrl: `data:image/png;base64,${image_base64}`,
+      imageUrl: `data:image/png;base64,${base64}`,
     });
   } catch (err: any) {
-    console.error("ERROR:", err);
+    console.error("AI ERROR:", err);
     return NextResponse.json(
       { error: "Generation failed", details: err.message },
       { status: 500 }
     );
   }
 }
-
