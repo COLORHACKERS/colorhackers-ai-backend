@@ -1,82 +1,114 @@
-import express from 'express'
-import path from 'path'
-import { fileURLToPath } from 'url'
+// ───────────────────────────────────────────────
+//  COLORHACKERS AI BACKEND – FULL WORKING VERSION
+// ───────────────────────────────────────────────
+
+import express from "express";
+import cors from "cors";
 import formidable from "formidable";
 import fs from "fs";
 import { OpenAI } from "openai";
+import path from "path";
+import { fileURLToPath } from "url";
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
+// Resolve module paths
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-const app = express()
+// Initialize app
+const app = express();
 
-// ---------------- EXISTING ROUTES -------------------
+// ───────────────────────────────────────────────
+//  CORS — allows Shopify to contact this backend
+// ───────────────────────────────────────────────
+app.use(
+  cors({
+    origin: "*",
+    methods: ["GET", "POST"],
+  })
+);
 
-app.get('/', (req, res) => {
-  res.type('html').send(`...`)
-})
+// Health check route
+app.get("/api/healthz", (req, res) => {
+  res.status(200).json({
+    status: "ok",
+    timestamp: new Date().toISOString(),
+  });
+});
 
-app.get('/about', function (req, res) {
-  res.sendFile(path.join(__dirname, '..', 'components', 'about.htm'))
-})
-
-app.get('/api-data', (req, res) => {
-  res.json({ message: 'Here is some sample API data' })
-})
-
-app.get('/healthz', (req, res) => {
-  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() })
-})
-
-
-// -----------------------------------------------------
-// 🚀 AI SILO REALM GENERATOR ROUTE (your new code)
-// -----------------------------------------------------
-
-app.post('/api/generate-silo-realm', async (req, res) => {
+// ───────────────────────────────────────────────
+//  AI SILO REALM IMAGE GENERATOR
+// ───────────────────────────────────────────────
+app.post("/api/generate-silo-realm", async (req, res) => {
   try {
-    const form = formidable({ multiples: false });
+    const form = formidable({
+      multiples: false,
+      keepExtensions: true,
+    });
 
     form.parse(req, async (err, fields, files) => {
       if (err) {
-        console.error("Form parse error:", err);
+        console.error("❌ Form parse error:", err);
         return res.status(400).json({ error: "Bad request" });
       }
 
+      // Image
       const imageFile = files.image;
-      if (!imageFile) {
+      if (!imageFile || !imageFile.filepath) {
         return res.status(400).json({ error: "No image uploaded" });
       }
 
-      const fileData = fs.readFileSync(imageFile[0].filepath);
-      const base64 = fileData.toString("base64");
+      // Silo
+      const silo = fields.silo || "Unknown";
 
-      const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      // Read file
+      const fileData = fs.readFileSync(imageFile.filepath);
+      const base64Image = fileData.toString("base64");
 
-      const prompt = `
-        Transform this selfie into a ColorHackers Silo Realm aesthetic.
-        Apply the correct colors, tones, light, and atmosphere.
-      `;
-
-      const result = await client.images.generate({
-        model: "gpt-image-1",
-        prompt,
-        size: "1024x1024",
-        image: base64,
+      // AI client
+      const client = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
       });
 
-      const outputUrl = result.data[0].url;
-      res.json({ imageUrl: outputUrl });
-    });
+      // Prompt tailored to the silo
+      const prompt = `
+        Transform this selfie into a ColorHackers ${silo} Realm.
+        Apply the correct colors, textures, light, and atmosphere for the ${silo}:
+        - Ethereal → clouds, glow, soft light, pastel haze
+        - Earthers → forests, clay, herbal tones
+        - Elementals → color prisms, kinetic energy, paint splashes
+        - Naturalists → beige, cream, clay, warmth, skin-tones
+        - Cosmics → ultraviolet, deep space, pink nebula lights
+        - Metallics → chrome, mirrors, gold, engineered reflections
+        - Royals → velvet drapes, maroon, navy, garnet shadows
+        Keep the person recognizable but stylized inside their silo world.
+      `;
 
-  } catch (error) {
-    console.error("AI Error:", error);
-    res.status(500).json({ error: "AI generation failed" });
+      // AI request
+      const aiResponse = await client.images.generate({
+        model: "gpt-image-1",
+        prompt,
+        image: base64Image,
+        size: "1024x1024",
+      });
+
+      const outputUrl = aiResponse.data[0].url;
+
+      return res.json({ imageUrl: outputUrl });
+    });
+  } catch (error: any) {
+    console.error("❌ AI Error:", error);
+    return res.status(500).json({ error: "AI generation failed" });
   }
 });
 
+// ───────────────────────────────────────────────
+//  DEFAULT HOME (optional, not needed for API)
+// ───────────────────────────────────────────────
+app.get("/", (req, res) => {
+  res.send(`<h1>ColorHackers AI Backend Running</h1>`);
+});
 
-// -----------------------------------------------------
-// 🚨 DO NOT MOVE THIS — MUST BE AT THE END
-// -----------------------------------------------------
+// ───────────────────────────────────────────────
+//  EXPORT
+// ───────────────────────────────────────────────
 export default app;
