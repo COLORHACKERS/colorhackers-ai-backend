@@ -1,62 +1,44 @@
-import express from "express";
-import path from "path";
-import { fileURLToPath } from "url";
-import formidable from "formidable";
-import fs from "fs";
-import { OpenAI } from "openai";
+// --- AI SILO REALM GENERATOR ---------------------------------------
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+app.post('/api/generate-silo-realm', async (req, res) => {
+  try {
+    const form = formidable({ multiples: false });
 
-const app = express();
+    form.parse(req, async (err, fields, files) => {
+      if (err) {
+        console.error("Form parse error:", err);
+        return res.status(400).json({ error: "Bad request" });
+      }
 
-// Allow JSON
-app.use(express.json());
+      const imageFile = files.image;
+      if (!imageFile) {
+        return res.status(400).json({ error: "No image uploaded" });
+      }
 
-// AI CLIENT
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+      const fileData = fs.readFileSync(imageFile[0].filepath);
+      const base64 = fileData.toString("base64");
 
-// -------------------------
-// GENERATE SILO REALM IMAGE
-// -------------------------
-app.post("/api/generate-silo-realm", (req, res) => {
-  const form = formidable({ multiples: false });
+      const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-  form.parse(req, async (err, fields, files) => {
-    if (err) return res.status(500).json({ error: "Upload failed" });
+      // YOU CAN CHANGE THE PROMPT
+      const prompt = `
+        Transform this selfie into a ColorHackers Silo Realm aesthetic.
+        Apply the correct colors, tones, light, and atmosphere.
+      `;
 
-    const imageFile = files.file;
-    if (!imageFile) return res.status(400).json({ error: "No file uploaded" });
-
-    const buffer = fs.readFileSync(imageFile.filepath);
-
-    try {
-      const response = await client.images.generate({
+      const result = await client.images.generate({
         model: "gpt-image-1",
-        prompt:
-          "Turn this selfie into a ColorHackers Silo Realm image, cinematic, high-end, glowing colors.",
+        prompt,
         size: "1024x1024",
-        image: buffer,
+        image: base64,
       });
 
-      const image_base64 = response.data[0].b64_json;
+      const outputUrl = result.data[0].url;
+      res.json({ imageUrl: outputUrl });
+    });
 
-      res.json({ image: image_base64 });
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: "AI generation failed" });
-    }
-  });
+  } catch (error) {
+    console.error("AI Error:", error);
+    res.status(500).json({ error: "AI generation failed" });
+  }
 });
-
-// -------------------------
-// HEALTH CHECK
-// -------------------------
-app.get("/healthz", (req, res) => {
-  res.json({ ok: true, time: new Date().toISOString() });
-});
-
-// DEFAULT EXPORT FOR VERCEL
-export default app;
