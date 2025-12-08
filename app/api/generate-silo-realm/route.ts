@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
+
 
 const prompts: Record<string, string> = {
   Ethereal: "soft glowing ethereal mist, dreamy light, cinematic ultra realistic photography",
