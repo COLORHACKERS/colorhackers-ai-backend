@@ -16,33 +16,31 @@ export async function POST(req: Request) {
       );
     }
 
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const base64Image = buffer.toString("base64");
+    // Convert file to raw buffer (Uploadable format)
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
 
     const prompts: Record<string, string> = {
       Ethereal: "soft glowing ethereal mist, dreamy light, cinematic ultra realistic photography",
       Earthers: "earth tones, forest shadows, botanical texture, grounded aesthetic, ultra realistic",
-      Elementals: "dynamic color energy, electric hues, kinetic movement, ultra realistic skin",
-      Naturalists: "warm terracotta, linen texture, natural window light, cozy realism",
+      Elementals: "dynamic energy, electric hues, kinetic movement, ultra realistic skin",
+      Naturalists: "warm terracotta, linen texture, natural light, cozy realism",
       Cosmics: "nebula glow, ultraviolet shadows, cosmic lighting, ultra realistic",
-      Metallics: "chrome reflections, gold flecks, metallic engineered lighting, ultra realistic",
+      Metallics: "chrome reflections, gold flecks, metallic studio lighting, ultra realistic",
       Royals: "velvet, maroon, navy, regal dramatic portrait lighting, ultra realistic"
     };
 
-    const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY!
-    });
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
-    // Correct OpenAI method for editing images
+    // CORRECT: pass Buffer (Uploadable), NOT base64 string
     const result = await openai.images.edit({
       model: "gpt-image-1",
-      image: base64Image,
+      image: buffer,           // <-- FIXED
       prompt: `Transform this person into the ${silo} Silo Realm. Style: ${prompts[silo]}. Ultra realistic portrait.`,
       size: "1024x1024"
     });
 
     const imageUrl = result.data[0].url;
-
     return NextResponse.json({ imageUrl });
   } catch (err: any) {
     return NextResponse.json(
