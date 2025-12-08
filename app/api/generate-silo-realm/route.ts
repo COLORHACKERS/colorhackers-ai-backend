@@ -1,227 +1,100 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import OpenAI from "openai";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY!,
-});
+export const runtime = "edge";
 
-// Use Node runtime (safer for OpenAI client)
-export const runtime = "nodejs";
-
-const CORS_HEADERS: Record<string, string> = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
-};
-
-export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 204,
-    headers: CORS_HEADERS,
-  });
-}
-
-type EngineMode = "auto" | "text" | "photo" | "frequency";
-
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
-    const contentType = req.headers.get("content-type") || "";
-    let mode: EngineMode = "auto";
+    const form = await req.formData();
+    const imageFile = form.get("image");
+    const silo = form.get("silo");
 
-    // Normalized payload we’ll send to the AI engine
-    const payload: {
-      textDescription?: string;
-      frequencyHz?: number;
-      userNotes?: string;
-      siloHint?: string;
-      wantsImage?: boolean;
-      // NOTE: we are NOT uploading the raw image to OpenAI yet,
-      // we just use a text description for the generated artwork.
-    } = { wantsImage: true };
-
-    // 1) Handle multipart/form-data (Shopify style upload)
-    if (contentType.includes("multipart/form-data")) {
-      const form = await req.formData();
-
-      const text = form.get("text")?.toString();
-      const notes = form.get("notes")?.toString();
-      const siloHint = form.get("silo")?.toString();
-      const freq = form.get("frequency_hz")?.toString();
-      const wantsImage =
-        form.get("wantsImage")?.toString().toLowerCase() !== "false";
-
-      mode = (form.get("mode")?.toString() as EngineMode) || "photo";
-
-      if (text) payload.textDescription = text;
-      if (notes) payload.userNotes = notes;
-      if (siloHint) payload.siloHint = siloHint;
-      if (freq && !Number.isNaN(Number(freq))) {
-        payload.frequencyHz = Number(freq);
-      }
-      payload.wantsImage = wantsImage;
-
-      // If an <input type="file" name="image" /> is sent, we
-      // could later read it for real image editing; for now we
-      // just *know* it was a selfie and describe it in the prompt.
+    if (!imageFile || typeof imageFile === "string") {
+      return NextResponse.json({ error: "No image uploaded" }, { status: 400 });
     }
 
-    // 2) Handle JSON body (app / JS client)
-    else {
-      const body = await req.json().catch(() => ({}));
-      mode = (body.mode as EngineMode) || "auto";
-
-      if (body.text) payload.textDescription = body.text;
-      if (body.userNotes) payload.userNotes = body.userNotes;
-      if (body.siloHint) payload.siloHint = body.siloHint;
-      if (body.frequencyHz) payload.frequencyHz = Number(body.frequencyHz);
-      if (typeof body.wantsImage === "boolean") {
-        payload.wantsImage = body.wantsImage;
-      }
+    if (!silo) {
+      return NextResponse.json({ error: "Missing silo" }, { status: 400 });
     }
 
-    // Fallback defaults so the model always has something to chew on
-    if (!payload.textDescription && !payload.frequencyHz) {
-      payload.textDescription =
-        "No description provided. Infer a gentle default profile.";
-    }
+    const bytes = await imageFile.arrayBuffer();
 
-    // ---- 3) Call the ColorHackers Engine (Chat completion) ----
-    const schemaDescription = `
-You are the ColorHackers Engine. Respond with STRICT JSON only.
+    const siloPrompts: Record<string, string> = {
+      Ethereal:
+        "ultra realistic portrait, soft glowing ethereal mist, pale clouds, dreamy atmosphere, cinematic soft light, film photography",
+      Earthers:
+        "ultra realistic portrait, earthy tones, natural greens, botanical textures, real sunlight, warm film color, grounded aesthetic",
+      Elementals:
+        "ultra realistic portrait, bold kinetic colors, motion energy, vibrant paint strokes, crisp studio light, intense dynamic look",
+      Naturalists:
+        "ultra realistic portrait, terracotta, linen, natural light through windows, warm human tone textures, organic environment",
+      Cosmics:
+        "ultra realistic portrait, cosmic nebula, ultraviolet glow, deep navy and violet, dramatic sci-fi lighting, surreal realism",
+      Metallics:
+        "ultra realistic portrait, chrome reflections, metallic gradients, engineered light, gold + silver highlights, hypermodern style",
+      Royals:
+        "ultra realistic portrait, velvet, maroon, navy shadows, regal dramatic lighting, cinematic rich tones"
+    };
 
-Fields:
-- silo_prediction:
-    - primary_silo: one of ["Ethereal","Earther","Elementals","Naturalist","Cosmic","Metallic","Royals"]
-    - confidence: number 0-1
-    - secondary_silos: string[]
-- color_profile:
-    - primary_hex: string (like "#AABBCC")
-    - secondary_hexes: string[]
-    - vibe_words: string[] // 3-7 short descriptors
-- frequency_analysis:
-    - has_input: boolean
-    - interpreted_frequency_hz: number | null
-    - band: "infra-low" | "low" | "mid" | "high" | "ultra"
-    - band_color_hex: string
-- personality_notes: string   // 2-5 sentences, friendly, no line breaks
-`;
+    const descriptionMap: Record<string, string> = {
+      Ethereal:
+        "Ethereals are emotional, transparent, sensitive dreamers who thrive in peace, softness, and inspiration.",
+      Earthers:
+        "Earthers are grounded, reliable, steady energies who bring calm, nature, and stability.",
+      Elementals:
+        "Elementals are full of color, vibrance, creativity, and kinetic energy — they spark movement.",
+      Naturalists:
+        "Naturalists crave honesty, texture, natural warmth, and human connection.",
+      Cosmics:
+        "Cosmics are innovators who thrive in mystery, depth, futuristic energy and the unseen.",
+      Metallics:
+        "Metallics are intense, reflective, brilliant individuals who feel engineered for impact.",
+      Royals:
+        "Royals carry emotional depth, dramatic presence, and magnetic classic power."
+    };
 
-    const userSummary = JSON.stringify(
-      {
-        mode,
-        textDescription: payload.textDescription,
-        frequencyHz: payload.frequencyHz ?? null,
-        userNotes: payload.userNotes ?? null,
-        siloHint: payload.siloHint ?? null,
-      },
-      null,
-      2
-    );
+    const paletteMap: Record<string, string[]> = {
+      Ethereal: ["#FFF7C2", "#DCEBFF", "#E9DFF9", "#2C3450"],
+      Earthers: ["#D5C6A1", "#7A8F63", "#4E6046", "#2B3A2A"],
+      Elementals: ["#F9B43A", "#FF6B2A", "#E63900", "#4A9BFF"],
+      Naturalists: ["#FCE0B8", "#E9C09A", "#C8A68A", "#3A2E23"],
+      Cosmics: ["#F9E29B", "#D3A6FF", "#3A2D6F", "#0A0616"],
+      Metallics: ["#F3C566", "#C9D6E0", "#7C8896", "#1B1F27"],
+      Royals: ["#E7C36C", "#C85D76", "#4C1D69", "#2A0F36"]
+    };
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4.1-mini",
-      temperature: 0.7,
-      messages: [
-        {
-          role: "system",
-          content: schemaDescription.trim(),
-        },
-        {
-          role: "user",
-          content: `Analyze this ColorHackers user input and respond with JSON matching the schema:\n\n${userSummary}`,
-        },
-      ],
+    const prompt = siloPrompts[silo as string] ?? "ultra realistic portrait";
+
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+    const result = await openai.images.generate({
+      model: "gpt-image-1",
+      prompt: `
+Transform the person in this uploaded selfie into their ${silo} Realm.
+
+STYLE REQUIREMENTS:
+- MUST be ultra realistic (NOT cartoon, NOT CGI, NOT illustrated)
+- Maintain real skin texture, real lighting + photographic look
+- Cinematic light + atmosphere
+- Use this thematic style: ${prompt}
+`,
+      size: "1024x1024",
+      image: bytes
     });
 
-    const rawContent = completion.choices[0].message.content || "{}";
+    const imageUrl = result.data[0].url;
 
-    let engine;
-    try {
-      engine = JSON.parse(rawContent);
-    } catch {
-      // If the model didn't give valid JSON, wrap it
-      engine = {
-        silo_prediction: {
-          primary_silo: "Ethereal",
-          confidence: 0.5,
-          secondary_silos: [],
-        },
-        color_profile: {
-          primary_hex: "#FFFFFF",
-          secondary_hexes: ["#000000"],
-          vibe_words: ["fallback"],
-        },
-        frequency_analysis: {
-          has_input: false,
-          interpreted_frequency_hz: null,
-          band: "mid",
-          band_color_hex: "#888888",
-        },
-        personality_notes: String(rawContent).slice(0, 400),
-      };
-    }
-
-    // ---- 4) Optional image generation for the silo realm ----
-    let imageBase64: string | null = null;
-    let imagePrompt = "";
-
-    if (payload.wantsImage !== false) {
-      const primarySilo =
-        engine?.silo_prediction?.primary_silo || payload.siloHint || "Ethereal";
-      const vibeWords =
-        engine?.color_profile?.vibe_words?.join(", ") ||
-        "soft, cinematic, glowing";
-
-      const palette =
-        engine?.color_profile?.primary_hex ||
-        "#A0C4FF"; /* gentle default blue */
-
-      imagePrompt = `
-Ultra realistic portrait, blurred face, representing the "${primarySilo}" ColorHackers silo.
-Mood: ${vibeWords}.
-Color palette led by ${palette}.
-Cinematic lighting, editorial yet mystical, no text, no words.
-      `.trim();
-
-      try {
-        const img = await openai.images.generate({
-          model: "gpt-image-1",
-          prompt: imagePrompt,
-          size: "1024x1024",
-          n: 1,
-          response_format: "b64_json",
-        });
-
-        imageBase64 = img.data[0]?.b64_json ?? null;
-      } catch (err) {
-        console.error("Image generation failed:", err);
-      }
-    }
-
+    return NextResponse.json({
+      success: true,
+      silo,
+      description: descriptionMap[silo as string],
+      palette: paletteMap[silo as string],
+      image: imageUrl
+    });
+  } catch (err: any) {
     return NextResponse.json(
-      {
-        ok: true,
-        mode,
-        engine,
-        image: {
-          prompt: imagePrompt,
-          base64: imageBase64,
-        },
-      },
-      { headers: CORS_HEADERS }
-    );
-  } catch (err) {
-    console.error("ColorHackers engine error:", err);
-
-    return NextResponse.json(
-      {
-        ok: false,
-        error: "ColorHackers Engine failed. Check backend logs.",
-      },
-      {
-        status: 500,
-        headers: CORS_HEADERS,
-      }
+      { error: err.message || "AI generation failed" },
+      { status: 500 }
     );
   }
 }
