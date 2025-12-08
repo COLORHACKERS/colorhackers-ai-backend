@@ -3,88 +3,48 @@ import OpenAI from "openai";
 
 export const runtime = "edge";
 
-export async function POST(req) {
+export async function POST(req: Request) {
   try {
-    // CORS headers for Shopify
-    const corsHeaders = {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
-    };
-
+    // Parse multipart form
     const form = await req.formData();
-    const image = form.get("image");
-    const silo = form.get("silo");
+    const file = form.get("image") as File | null;
+    const silo = form.get("silo") as string | null;
 
-    if (!image || !silo) {
-      return new NextResponse(
-        JSON.stringify({ error: "Missing image or silo" }),
-        { status: 400, headers: corsHeaders }
-      );
+    if (!file || !silo) {
+      return NextResponse.json({ error: "Missing image or silo" }, { status: 400 });
     }
 
-    const bytes = await image.arrayBuffer();
+    // Convert image to base64
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const base64Image = buffer.toString("base64");
 
-    const prompts = {
-      Ethereal:
-        "ultra realistic portrait, soft glowing mist, pale light, cinematic photography, real human skin texture",
-      Earthers:
-        "ultra realistic earthy portrait, forest tones, sunlight, botanical textures, grounded aesthetic, real photography",
-      Elementals:
-        "ultra realistic energetic portrait, bold colors, kinetic movement, crisp studio lighting, real skin",
-      Naturalists:
-        "ultra realistic warm human textures, terracotta, linen, natural window light, cozy and organic",
-      Cosmics:
-        "ultra realistic cosmic portrait, nebula light, deep blue + violet, cinematic sci-fi lighting",
-      Metallics:
-        "ultra realistic metallic portrait, chrome reflections, gold/silver highlights, engineered lighting",
-      Royals:
-        "ultra realistic regal portrait, velvet textures, navy + maroon, dramatic film lighting"
+    const prompts: Record<string, string> = {
+      Ethereal: "soft glowing ethereal mist, clouds, airy atmosphere, cinematic photography, ultra realistic",
+      Earthers: "earth tones, forest light, botanical texture, grounded aesthetic, ultra realistic",
+      Elementals: "dynamic color, motion energy, vibrant paint textures, sharp realism",
+      Naturalists: "warm human textures, linen, terracotta, soft window light, realistic skin",
+      Cosmics: "cosmic nebula light, ultraviolet shadows, dramatic lighting, ultra realistic",
+      Metallics: "chrome reflections, gold + silver lighting, engineered metallic textures, ultra realistic",
+      Royals: "velvet, maroon, navy, regal dramatic portrait lighting, ultra realistic"
     };
 
-    const stylePrompt = prompts[silo] || "ultra realistic portrait";
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-    // 🔥 IMPORTANT: Correct parameter is "input", NOT "image"
-    const result = await openai.images.generate({
+    // USE images.edit (supports uploaded images)
+    const result = await openai.images.edits({
       model: "gpt-image-1",
-      prompt: `
-Transform this selfie into their ${silo} realm.
-STYLE RULES:
-- MUST BE ULTRA REALISTIC
-- NEVER cartoon, illustration, CGI, 3D, or animated
-- Maintain real skin texture
-- Use cinematic photography lighting
-Theme: ${stylePrompt}
-      `,
-      size: "1024x1024",
-      input: bytes
+      image: base64Image,
+      prompt: `Transform this person into a ${silo} Silo Realm. Style: ${prompts[silo]}. Must look ultra realistic.`,
+      size: "1024x1024"
     });
 
     const imageUrl = result.data[0].url;
 
-    return new NextResponse(JSON.stringify({ imageUrl }), {
-      status: 200,
-      headers: corsHeaders,
-    });
-
-  } catch (err) {
-    return new NextResponse(
-      JSON.stringify({ error: "Server error: " + err.message }),
+    return NextResponse.json({ imageUrl });
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: err.message || "Image generation failed" },
       { status: 500 }
     );
   }
-}
-
-// Shopify requires OPTIONS handler
-export function OPTIONS() {
-  return new NextResponse(null, {
-    status: 204,
-    headers: {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
-    },
-  });
 }
